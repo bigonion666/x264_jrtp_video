@@ -1,0 +1,68 @@
+TOP_DIR := $(shell pwd)
+#APP = $(TOP_DIR)/yuv422_to_I420
+
+#CC = arm-linux-gcc
+#CFLAGS = -g 
+#LIBS = -lavutil -lswscale 
+#DEP_LIBS = -L/usr/local/ffmpeg/lib
+#HEADER = -I/usr/local/ffmpeg/include/libavutil -I/usr/local/ffmpeg/include/libswscale
+#OBJS = yuv422_to_I420.o
+
+#all:  $(OBJS)
+#	$(CC) -g -o $(APP) $(OBJS) $(LIBS) $(DEP_LIBS) $(HEADER) 
+
+#clean:
+#	rm -f *.o a.out $(APP) core *~
+#CROSS=arm-linux-
+CROSS=
+CC=$(CROSS)gcc
+CXX=$(CROSS)g++
+LINK=$(CROSS)g++ -o
+LIBRARY_LINK=$(CROSS)ar cr
+
+OUT=$(TOP_DIR)/OUT
+SRCDIR=$(TOP_DIR)/src
+
+#LIBAVDIR=/opt/opt/FriendlyARM/toolschain/4.5.1/arm-none-linux-gnueabi
+#LIBX264DIR=/opt/opt/FriendlyARM/toolschain/4.5.1/arm-none-linux-gnueabi
+#LIBJRTPDIR=/opt/opt/FriendlyARM/toolschain/4.5.1/arm-none-linux-gnueabi
+
+LIBAVDIR=/usr/local
+LIBX264DIR=/usr/local
+LIBJRTPDIR=/opt/jrtp
+
+
+#头文件
+INCLUDE= -I$(LIBAVDIR)/include -I$(TOP_DIR)/src -I$(LIBX264DIR)/include -I$(LIBJRTPDIR)/include
+
+#库文件
+LIBDIR= -L$(LIBAVDIR)/lib -L$(LIBX264DIR)/lib -L$(LIBJRTPDIR)/lib
+LIBS =  -lavutil -lswscale -lx264 -ljrtp -lpthread -ldl -ljthread
+LDFLAGS=$(LIBDIR) $(LIBS)
+
+#编译选项
+CXXFLAGS=
+CXXFLAGS= -g $(INCLUDE)
+CFLAGS=
+CFLAGS=-g $(INCLUDE)
+
+all: test
+
+$(OUT)/%.o:$(SRCDIR)/%.cpp
+	$(CXX) -c $< -o $@ $(CXXFLAGS) $(LDFLAGS)
+$(OUT)/%.o:$(SRCDIR)/%.c
+	$(CC) -c $< -o $@ $(CFLAGS) $(LDFLAGS)
+
+CPPOBJS =$(OUT)/capture.o $(OUT)/yuv422_to_I420.o $(OUT)/encoder.o $(OUT)/jrtpsend.o 
+$(SRCDIR)/code.cpp:$(SRCDIR)/capture.h
+$(SRCDIR)/yuv422_to_I420.cpp:$(SRCDIR)/yuv422_to_I420.h
+$(SRCDIR)/encoder.cpp:$(SRCDIR)/encoder.h
+$(SRCDIR)/jrtpsend.cpp:$(SRCDIR)/jrtpsend.h
+
+test: $(OUT)/main.o $(CPPOBJS) 
+		$(LINK) $@ $< $(CPPOBJS) $(CXXFLAGS) $(LDFLAGS)
+$(OUT)/main.o: $(SRCDIR)/main.cpp 
+	$(CXX) -c $< -o $@ $(CXXFLAGS) $(LDFLAGS)
+
+clean: 
+	rm $(OUT)/* 

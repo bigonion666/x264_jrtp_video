@@ -1,0 +1,190 @@
+#include<stdio.h>
+#include<stdlib.h>
+#include<string.h>
+#include"jrtpsend.h"
+
+ FILE *bits=NULL;
+ int FindStartCode2(unsigned char *buf);
+ int FindStartCode3(unsigned char *buf);
+
+ int info2=0,info3=0;
+
+ NALU_HEADER *nalu_hdr;
+ FU_INDICATOR *fu_ind;
+ FU_HEADER *fu_hdr;
+
+NALU_t *AllocNALU(int buffersize)
+{
+NALU_t *n;
+if((n=(NALU_t *)calloc(1,sizeof(NALU_t)))==NULL)
+{
+printf("AllocNALU:n Wrong\n");
+exit(0);
+}
+
+n->max_size=buffersize;
+
+if((n->buf=(unsigned char *)calloc(buffersize,sizeof(char)))==NULL)
+{
+free(n);
+printf("AllocNALU n->buf Wrong\n");
+exit(0);
+
+}
+
+return n;
+}
+
+
+void FreeNALU(NALU_t *n)
+{
+if(n)
+{
+if(n->buf)
+{
+free(n->buf);
+n->buf=NULL;
+
+}
+free(n);
+}
+
+}
+
+
+void OpenBitstreamFile(char *fp)
+{
+if(NULL==(bits=fopen(fp,"rb")))
+{
+printf("open file error\n");
+exit(0);
+}
+}
+
+
+int GetAnnexbNALU(NALU_t *nalu)
+{
+int pos=0;
+int StartCodeFound,rewind;
+unsigned char *Buf;
+
+if((Buf=(unsigned char *)calloc(nalu->max_size,sizeof(char)))==NULL)
+{
+printf("GetAnnexbAlloc:Could not allocate Buf memory\n");
+exit(0);
+}
+printf("nalu->max_size:%d\n",nalu->max_size);
+nalu->startcodeprefix_len=3;
+
+if(3!=fread(Buf,1,3,bits))
+{
+printf("fread Buf 3bits is Wrong\n");
+free(Buf);
+return 0;
+}
+info2=FindStartCode2(Buf);
+if(info2!=1)
+{
+	if(1!=fread(Buf+3,1,1,bits))
+		{
+			printf("fread Buf NO.4 is Wrong\n");
+			free(Buf);
+			return 0;
+		}
+
+		info3=FindStartCode3(Buf);
+		if(info3!=1)
+		{
+			printf("There is no StartCode\n");
+			free(Buf);
+			return -1;
+		}
+													
+		else
+		{
+			pos=4;
+			nalu->startcodeprefix_len=4;
+
+		}
+												}
+												else
+												{											nalu->startcodeprefix_len=3;
+		        pos=3;
+
+		}
+												StartCodeFound=0;								info2=0;
+		info3=0;
+
+		while(!StartCodeFound)
+		{
+		if(feof(bits))
+		{
+		nalu->len=(pos-1)-nalu->startcodeprefix_len;
+		memcpy(nalu->buf,&Buf[nalu->startcodeprefix_len],nalu->len);//no startcode
+		nalu->forbidden_bit=nalu->buf[0]&0x80;
+		nalu->nal_reference_idc=nalu->buf[0]&0x60;
+		nalu->nal_unit_type=(nalu->buf[0])&0x1f;
+		free(Buf);
+												return pos-1;
+		}
+
+		Buf[pos++]=fgetc(bits);
+		info3=FindStartCode3(&Buf[pos-4]);
+		if(info3!=1)
+		info2=FindStartCode2(&Buf[pos-3]);
+
+		StartCodeFound=(info2==1||info3==1);
+		}
+
+		rewind=(info3==1)?-4:-3;
+
+		if(0!=fseek(bits,rewind,SEEK_CUR))						{										free(Buf);									printf("GetAnnexNALU: Cannot fseek in the bit stream file\n");
+
+		}	
+
+		nalu->len=(pos+rewind)-nalu->startcodeprefix_len;
+		memcpy(nalu->buf,&Buf[nalu->startcodeprefix_len],nalu->len);
+		nalu->forbidden_bit=nalu->buf[0]&0x80;						nalu->nal_reference_idc=nalu->buf[0]&0x60;
+		nalu->nal_unit_type=(nalu->buf[0])&0x1f;
+
+		free(Buf);
+		return (pos+rewind);
+
+		}
+
+
+void dump(NALU_t *n)
+{
+if(!n)
+{
+printf("dump NALU_t is Wrong\n");
+return;
+}
+
+printf("len:%d\n",n->len);
+printf("nal_unit_type:%x\n",n->nal_unit_type);
+
+}
+
+
+int FindStartCode2(unsigned char *Buf)
+{
+	if(Buf[0]!=0||Buf[1]!=0||Buf[2]!=1)
+	{
+		//printf("Cannot find start 0x000001\n");
+				return 0;
+	}
+	else return 1;
+}
+
+
+int FindStartCode3(unsigned char *Buf)
+{
+	if(Buf[0]!=0||Buf[1]!=0||Buf[2]!=0||Buf[3]!=1)
+	{
+		return 0;	
+
+	}
+	else return 1;
+}
+

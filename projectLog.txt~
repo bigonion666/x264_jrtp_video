@@ -1,0 +1,99 @@
+
+		x264的压缩效果问题，待论文提纲出来以后再做进一步的实验，获取实验数据
+		MFC 相关的测试对比，近日搭建新的系统再新平台上恢复方案四，同时和MFC的实验一起完善
+		多视频源的问题可以和zyx，学习
+		
+17:14 ---------  bug: 客户端读到了数据，但是视频画面卡顿？
+		 analyse： 
+		 	1》帧率太快，arm端的数据来不及发送？
+		 	2》数据==采集==发送==没有协调好，采用文件读写的方式操作不当
+		 	   通过对比，开源方案和现在的区别在于，（代码），ffmpeg能够顺利的播放的话，那么说明硬件是具备这个能力的，
+		 	应该是软件层面效率的问题了，后续在做进一步的优化。
+		 	
+		 现在看到，VLC缓冲条时快时慢，尝试采用抓包工具看发过来的包在稳定性上面有什么问题
+		 		
+	
+--------------------------------------------现在可是收到数据----------------------------------------------------------------	
+	[1] 库文件依赖 增加下面的头文件
+		 rtpdefines.h
+		 
+		#include <stdio.h> 
+		#include <stdarg.h> 
+		#include <string.h>
+	
+	[2] 测试了ARM平台是小端模式（little END）    jrtp3.7.1/src/rtpconfig_unix.h {./configure 之后在执行}
+	// comment this if the target is a little endian system
+	//  翻译回来就是：如果目标板是小端模式的话就注释该行，没有注释啊！！！！！！！！！！！！
+	//#define RTP_BIG_ENDIAN 
+	
+	
+	在xiazai/x264——ffmpeg/目录下编译pc端的执行代码 [这里指定头文件和库文件的位置十分重要]
+		sudo g++ example4.cpp -o pcexample4 -ljrtp -I/usr/local/jrtp/include/jrtplib3 -L/usr/local/jrtp/lib
+
+现在：代码备份，然后在着手问题排查：
+********************************代码移植******11.12***************************************************************************************
+
+下午问题：
+	××××××× 相同代码，在两个平台下能运行起来，但是ARM平台发出的数据，PC端的VLC软件不能收到数据
+	-----》  想做好当前代码备份，和相关说明·「新建reposity： x264——jrtp——video」
+	-----》  问题排查：
+			   1》JRTP： example[x] 程序按照昨天的博客执行测试
+			   2》视频数据分阶段保存
+			   上面两部分别从 数据链路的数据采集/传输部分来追查问题
+上午问题：
+	××××××  由于  
+			 1》 g++ gcc  和 arm-linux-gcc/g++的区别（编译规则）
+			 2》 两个平台使用 ffmpeg x264 版本不一致的问题（目前ARM平台arm-linux-gcc 4.8 不支持对高版本ffmpeg的支持）
+		修改源码不为 	arm-linux-gcc 不支持的部分：
+		修改点如下：
+				1/  如下变量未使用，而且导致大量的报错，注释之
+//enum AVPixelFormat src_pix_fmt=AV_PIX_FMT_YUYV422;// = 1
+//enum AVPixelFormat dst_pix_fmt=AV_PIX_FMT_YUV420P;// = 0
+// src_pix_fmt = AV_PIX_FMT_YUYV422;
+// dst_pix_fmt = AV_PIX_FMT_YUV420P;
+//  @ 1112  redefined
+// int dst_bufsize;
+// int src_bufsize;
+				2/  删除，两个函数的执行部分	（注释之前已经确认，该函数未被调用）
+					void alloc_image(void)
+					void swscale_start(void)	
+
+
+********************************编译相关******11.11***************************************************************************************
+------x264
+	./configure --prefix=~/friendlyARM/x264 --enable-shared --disable-asm
+	
+	修改生成的config.mak文件
+	2.1 ARCH=X86 修改为ARCH=ARM
+	2.2 CC=gcc修改为CC=arm-linux-gcc
+	2.3去掉-m32 （这行中CFLAGS=-Wshadow -O3-ffast-math  -Wall -I. -I$(SRCPATH)-std=gnu99 -fomit-frame-pointer -fno-tree-vectorize) 
+	2.4 修改LD=gcc –o为LD=arm-linux-gcc –o
+-Wno-maybe-uninitialized	
+
+------------ffmpeg
+./configure  --prefix=/home/summer/friendlyARM/ffmpeg --enable-cross-compile --cross-prefix=arm-linux- --target-os=linux --arch=arm --enable-shared  --enable-version3 --extra-cflags=-I/home/summer/friendlyARM/x264/include --extra-ldflags=-L/home/summer/friendlyARM/x264/lib --enable-libx264  --enable-gpl 
+
+********************************************************************************************************************
+》》 由于编译器arm-linux-gcc  对 MAVD_HUGE_PAGE 不支持，现在的策略是根据PC端的代码实现逻辑参考例程序做修改：
+》》 可以预见的是，改动的范围应该不是很大，因为实现过程中使用的都是基本功能函数
+》》 务必参考例程做修改《
+》》  然后逐步测试，保证整个功能是完善的
+********************************************************************************************************************
+
+JTHREAD/JRTP库的编译参考下面的链接
+http://blog.csdn.net/elevenxjz/article/details/6043369
+---------------------jthread
+./configure  --prefix=/home/summer/friendlyARM/jthread --host=arm-linux CC=arm-linux-gcc CXX=arm-linux-g++
+
+// rtpdefines.h  在该文件中增加下面的三行，避免一些库函数没法使用
+  75 #include <stdio.h>
+  76 #include <stdarg.h>
+  77 #include <string.h>
+//rtpconfig_ unix.h  测试ARM210为小端格式
+ //#define RTP_BIG_ENDIAN // comment this if the target is a little endian system 
+ 
+
+----------------------------------jrtp
+./configure --prefix=/home/summer/friendlyARM/jrtpLittleEnd --host=arm-linux --with-jthread-includes=/home/summer/friendlyARM/jthread CC=arm-linux-gcc CXX=arm-linux-g++ LDFLAGS=-L/home/summer/friendlyARM/jthread/lib
+
+

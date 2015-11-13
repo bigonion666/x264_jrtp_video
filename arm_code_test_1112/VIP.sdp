@@ -1,0 +1,4 @@
+m=video 9000 RTP/AVP 96
+a=rtpmap:96 H264
+a=framerate:25
+c=IN IP4 222.197.174.76

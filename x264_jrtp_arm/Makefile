@@ -32,7 +32,7 @@ SRCDIR=$(TOP_DIR)/src
 
 LIBAVDIR=/home/summer/friendlyARM/ffmpeg
 LIBX264DIR=/home/summer/friendlyARM/x264
-LIBJRTPDIR=/home/summer/friendlyARM/jrtp
+LIBJRTPDIR=/home/summer/friendlyARM/jrtpLittleEnd
 LIBJTHREAD=/home/summer/friendlyARM/jthread
 
 

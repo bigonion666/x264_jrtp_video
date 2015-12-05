@@ -117,7 +117,9 @@ int main(int argc, char ** argv)
         portbase = 33334;
         destport = 9000;
         //ipstr = "222.197.174.76";
-        ipstr = "202.115.11.128";
+        // @ 1204 change the ip to the LAN IP
+        //ipstr = "202.115.11.128";
+        ipstr = "192.168.5.155";
         destip = inet_addr(ipstr.c_str()); 
         //destip = ntohl(destip); ///************** very important **************
         destip = htonl(destip);
